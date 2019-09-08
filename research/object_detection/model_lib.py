@@ -656,7 +656,7 @@ def create_train_and_eval_specs(train_input_fn,
                                 predict_input_fn,
                                 train_steps,
                                 eval_on_train_data=False,
-                                final_exporter_name='Servo',
+                                exporter_name='Servo',
                                 eval_spec_names=None):
   """Creates a `TrainSpec` and `EvalSpec`s.
 
@@ -670,7 +670,7 @@ def create_train_and_eval_specs(train_input_fn,
     train_steps: Number of training steps.
     eval_on_train_data: Whether to evaluate model on training data. Default is
       False.
-    final_exporter_name: String name given to `FinalExporter`.
+    exporter_name: String name given to `BestExporter`.
     eval_spec_names: A list of string names for each `EvalSpec`.
 
   Returns:
@@ -689,11 +689,9 @@ def create_train_and_eval_specs(train_input_fn,
       zip(eval_spec_names, eval_input_fns)):
     # Uses final_exporter_name as exporter_name for the first eval spec for
     # backward compatibility.
-    if index == 0:
-      exporter_name = final_exporter_name
-    else:
-      exporter_name = '{}_{}'.format(final_exporter_name, eval_spec_name)
-    exporter = tf.estimator.FinalExporter(
+    if index != 0:
+      exporter_name = '{}_{}'.format(exporter_name, eval_spec_name)
+    exporter = tf.estimator.BestExporter(
         name=exporter_name, serving_input_receiver_fn=predict_input_fn)
     eval_specs.append(
         tf.estimator.EvalSpec(
