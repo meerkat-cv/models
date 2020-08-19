@@ -25,6 +25,25 @@ import tensorflow as tf
 from object_detection import model_hparams
 from object_detection import model_lib
 
+def verta_setup(url, project_name, experiment_name):
+    try:
+        from verta import Client
+    except ModuleNotFoundError:
+        print("Could not import Verta.")
+        return None
+    
+    try:
+        client = Client(url)    
+    except requests.exceptions.ConnectionError:
+        print("Could not connect to URL %s." % (url,))
+        return None
+    else:
+        client.set_project(project_name)
+        client.set_experiment(experiment_name)
+
+        return client
+
+
 flags.DEFINE_string(
     'model_dir', None, 'Path to output model directory '
     'where event and checkpoint files will be written.')
@@ -53,6 +72,15 @@ flags.DEFINE_boolean(
     'run_once', False, 'If running in eval-only mode, whether to run just '
     'one round of eval vs running continuously (default).'
 )
+flags.DEFINE_string(
+    'verta_url', None, "URL of Verta"
+)
+flags.DEFINE_string(
+    'verta_project_name', "Test Project", "Name of Verta project"
+)
+flags.DEFINE_string(
+    'verta_experiment_name', "Test Experiment", "Name of Verta experiment"
+)
 FLAGS = flags.FLAGS
 
 
@@ -60,6 +88,12 @@ def main(unused_argv):
   flags.mark_flag_as_required('model_dir')
   flags.mark_flag_as_required('pipeline_config_path')
   config = tf.estimator.RunConfig(model_dir=FLAGS.model_dir)
+  
+  using_verta = FLAGS.verta_url is not None
+  if using_verta:
+    verta_client = verta_setup(FLAGS.verta_url, FLAGS.verta_project_name, FLAGS.verta_experiment_name)
+    verta_run = verta_client.set_experiment_run()
+    verta_run.log_artifact("pipeline_config", FLAGS.pipeline_config_path)
 
   train_and_eval_dict = model_lib.create_estimator_and_inputs(
       run_config=config,
@@ -104,6 +138,10 @@ def main(unused_argv):
     # Currently only a single Eval Spec is allowed.
     tf.estimator.train_and_evaluate(estimator, train_spec, eval_specs[0])
 
+  # Pass all logged events to Verta
+  if using_verta and FLAGS.checkpoint_dir:
+    from verta.integrations.tensorflow import log_tensorboard_events
+    log_tensorboard_events(verta_run, FLAGS.checkpoint_dir)
 
 if __name__ == '__main__':
   tf.app.run()
